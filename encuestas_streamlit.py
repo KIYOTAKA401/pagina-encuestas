@@ -10,7 +10,7 @@ st.set_page_config(page_title="Portal de Encuestas", page_icon="📊", layout="w
 # Título principal
 st.title("📊 Portal de Encuestas y Análisis de Datos")
 
-# Diccionario para almacenar las encuestas (en una app real usarías una base de datos)
+# Diccionario para almacenar las encuestas
 if 'encuestas' not in st.session_state:
     st.session_state.encuestas = {}
 
@@ -71,7 +71,7 @@ def responder_encuesta():
         return
     
     encuesta_seleccionada = st.selectbox("Selecciona una encuesta para responder", 
-                                        list(st.session_state.encuestas.keys()))
+                                       list(st.session_state.encuestas.keys()))
     
     encuesta = st.session_state.encuestas[encuesta_seleccionada]
     
@@ -105,7 +105,7 @@ def analizar_encuesta():
         return
     
     encuesta_seleccionada = st.selectbox("Selecciona una encuesta para analizar", 
-                                        list(st.session_state.encuestas.keys()))
+                                       list(st.session_state.encuestas.keys()))
     
     encuesta = st.session_state.encuestas[encuesta_seleccionada]
     
@@ -183,4 +183,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
