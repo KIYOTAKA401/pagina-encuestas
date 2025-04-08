@@ -1,3 +1,23 @@
+import json
+from pathlib import Path
+
+# Ruta al archivo de usuarios
+RUTA_USUARIOS = Path("usuarios.json")
+
+# Cargar usuarios desde archivo
+def cargar_usuarios():
+    if RUTA_USUARIOS.exists():
+        with open(RUTA_USUARIOS, "r") as f:
+            return json.load(f)
+    return {}
+
+# Guardar usuarios en archivo
+def guardar_usuarios(usuarios):
+    with open(RUTA_USUARIOS, "w") as f:
+        json.dump(usuarios, f, indent=4)
+
+usuarios = cargar_usuarios()
+
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
