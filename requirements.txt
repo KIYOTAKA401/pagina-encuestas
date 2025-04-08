@@ -1,3 +1,5 @@
+json
+pathlib
 streamlit
 pandas
 matplotlib
