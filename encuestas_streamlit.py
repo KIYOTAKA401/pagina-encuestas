@@ -1,17 +1,14 @@
-import json
 from pathlib import Path
+import json
 
-# Ruta al archivo de usuarios
 RUTA_USUARIOS = Path("usuarios.json")
 
-# Cargar usuarios desde archivo
 def cargar_usuarios():
     if RUTA_USUARIOS.exists():
         with open(RUTA_USUARIOS, "r") as f:
             return json.load(f)
     return {}
 
-# Guardar usuarios en archivo
 def guardar_usuarios(usuarios):
     with open(RUTA_USUARIOS, "w") as f:
         json.dump(usuarios, f, indent=4)
