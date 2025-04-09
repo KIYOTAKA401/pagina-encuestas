@@ -1,38 +1,24 @@
-from pathlib import Path
-import json
-
-RUTA_USUARIOS = Path("usuarios.json")
-
-def cargar_usuarios():
-    if RUTA_USUARIOS.exists():
-        with open(RUTA_USUARIOS, "r") as f:
-            return json.load(f)
-    return {}
-
-def guardar_usuarios(usuarios):
-    with open(RUTA_USUARIOS, "w") as f:
-        json.dump(usuarios, f, indent=4)
-
-usuarios = cargar_usuarios()
-
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import bcrypt
+from supabase import create_client, Client
+
+# Configuración inicial de Supabase
+SUPABASE_URL = "https://socgmmemdzxxuhmmlalp.supabase.co"  # Reemplaza con tu URL real
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvY2dtbWVtZHp4eHVobW1sYWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxNjYzMzUsImV4cCI6MjA1OTc0MjMzNX0.Qp10puEQ7_DY195lzNvbOpjvjkpcwCmsSnfzafvdleU"  # Reemplaza con tu API Key
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Configuración inicial de la página
 st.set_page_config(page_title="Portal de Encuestas", page_icon="📊", layout="wide")
 
-# Diccionarios en sesión
-if 'usuarios' not in st.session_state:
-    st.session_state.usuarios = {}  # {usuario: {"nombre": ..., "apellido": ..., "correo": ..., "contraseña": ...}}
 if 'usuario_autenticado' not in st.session_state:
     st.session_state.usuario_autenticado = None
 if 'encuestas' not in st.session_state:
     st.session_state.encuestas = {}
 
-# Página de registro
 def registrar_usuario():
     st.title("📝 Registro de Usuario")
     with st.form("form_registro"):
@@ -40,48 +26,54 @@ def registrar_usuario():
         nombre = st.text_input("Nombre")
         apellido = st.text_input("Apellido")
         correo = st.text_input("Correo electrónico")
-        contraseña = st.text_input("Contraseña", type="password")
+        contrasena = st.text_input("Contraseña", type="password")
         confirmar = st.text_input("Confirmar contraseña", type="password")
         submit = st.form_submit_button("Registrar")
 
         if submit:
-            if not usuario or not nombre or not apellido or not correo or not contraseña:
+            if not usuario or not nombre or not apellido or not correo or not contrasena:
                 st.error("Todos los campos son obligatorios.")
-            elif contraseña != confirmar:
+            elif contrasena != confirmar:
                 st.error("Las contraseñas no coinciden.")
-            elif usuario in st.session_state.usuarios:
-                st.error("El nombre de usuario ya existe.")
             else:
-                st.session_state.usuarios[usuario] = {
-                    "nombre": nombre,
-                    "apellido": apellido,
-                    "correo": correo,
-                    "contraseña": contraseña
-                }
-                st.success("Usuario registrado correctamente. Ahora puedes iniciar sesión.")
+                res = supabase.table("usuarios").select("*").eq("usuario", usuario).execute()
+                if res.data:
+                    st.error("El nombre de usuario ya existe.")
+                else:
+                    hash_contrasena = bcrypt.hashpw(contrasena.encode(), bcrypt.gensalt()).decode()
+                    supabase.table("usuarios").insert({
+                        "usuario": usuario,
+                        "nombre": nombre,
+                        "apellido": apellido,
+                        "correo": correo,
+                        "contrasena": hash_contrasena
+                    }).execute()
+                    st.success("Usuario registrado correctamente. Ahora puedes iniciar sesión.")
 
-# Página de inicio de sesión
 def iniciar_sesion():
     st.title("🔐 Iniciar Sesión")
     with st.form("form_login"):
         usuario = st.text_input("Usuario")
-        contraseña = st.text_input("Contraseña", type="password")
+        contrasena = st.text_input("Contraseña", type="password")
         submit = st.form_submit_button("Iniciar Sesión")
 
         if submit:
-            usuario_data = st.session_state.usuarios.get(usuario)
-            if usuario_data and usuario_data["contraseña"] == contraseña:
-                st.session_state.usuario_autenticado = usuario
-                st.success(f"Bienvenido {usuario_data['nombre']} 👋")
+            res = supabase.table("usuarios").select("*").eq("usuario", usuario).execute()
+            if res.data:
+                usuario_data = res.data[0]
+                hash_guardado = usuario_data["contrasena"]
+                if bcrypt.checkpw(contrasena.encode(), hash_guardado.encode()):
+                    st.session_state.usuario_autenticado = usuario
+                    st.success(f"Bienvenido {usuario_data['nombre']} 👋")
+                else:
+                    st.error("Contraseña incorrecta.")
             else:
-                st.error("Usuario o contraseña incorrectos.")
+                st.error("Usuario no encontrado.")
 
-# Función para cerrar sesión
 def cerrar_sesion():
     st.session_state.usuario_autenticado = None
     st.success("Sesión cerrada correctamente.")
 
-# Función para crear una nueva encuesta
 def crear_encuesta():
     st.subheader("Crear Nueva Encuesta")
     with st.form("form_crear_encuesta"):
@@ -99,7 +91,7 @@ def crear_encuesta():
             with col2:
                 tipo_pregunta = st.selectbox(f"Tipo de pregunta {i+1}", tipos_pregunta, key=f"tipo_{i}")
             if tipo_pregunta == "Selección múltiple":
-                opciones = st.text_input(f"Opciones (separadas por comas) para pregunta {i+1}", help="Ejemplo: Opción 1, Opción 2, Opción 3")
+                opciones = st.text_input(f"Opciones (separadas por comas) para pregunta {i+1}", help="Ejemplo: Opcion 1, Opcion 2")
                 opciones = [op.strip() for op in opciones.split(",") if op.strip()]
             else:
                 opciones = []
@@ -115,7 +107,6 @@ def crear_encuesta():
             else:
                 st.error("El título es obligatorio")
 
-# Función para responder encuestas
 def responder_encuesta():
     st.subheader("Responder Encuesta")
     if not st.session_state.encuestas:
@@ -140,7 +131,6 @@ def responder_encuesta():
             encuesta["respuestas"].append(respuestas)
             st.success("¡Gracias por responder la encuesta!")
 
-# Función para analizar encuestas
 def analizar_encuesta():
     st.subheader("Análisis de Encuestas")
     if not st.session_state.encuestas:
@@ -178,18 +168,12 @@ def analizar_encuesta():
             freq_table.columns = ["Respuesta", "Frecuencia"]
             st.dataframe(freq_table)
 
-# Menú principal del portal (solo si está autenticado)
 def portal_encuestas():
     st.sidebar.title("Menú")
-    opcion = st.sidebar.radio("Selecciona una opción:", 
-                              ["Inicio", "Crear Encuesta", "Responder Encuesta", "Analizar Encuesta", "Cerrar Sesión"])
+    opcion = st.sidebar.radio("Selecciona una opción:", ["Inicio", "Crear Encuesta", "Responder Encuesta", "Analizar Encuesta", "Cerrar Sesión"])
     if opcion == "Inicio":
         st.write("## Bienvenido al Portal de Encuestas y Análisis de Datos")
-        st.write("Esta plataforma te permite: "
-        "- Crear encuestas personalizadas"
-        "- Recolectar respuestas"
-        "- Visualizar resultados con análisis estadístico"
-        "- Generar gráficos interactivos")
+        st.write("Esta plataforma te permite: - Crear encuestas personalizadas - Recolectar respuestas - Visualizar resultados con análisis estadístico - Generar gráficos interactivos")
     elif opcion == "Crear Encuesta":
         crear_encuesta()
     elif opcion == "Responder Encuesta":
@@ -199,7 +183,6 @@ def portal_encuestas():
     elif opcion == "Cerrar Sesión":
         cerrar_sesion()
 
-# Punto de entrada
 def main():
     if st.session_state.usuario_autenticado:
         portal_encuestas()
@@ -213,3 +196,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
