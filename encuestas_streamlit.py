@@ -2,22 +2,31 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
 import bcrypt
 from supabase import create_client, Client
 
-# Configuración inicial de Supabase
-SUPABASE_URL = "https://socgmmemdzxxuhmmlalp.supabase.co"  # Reemplaza con tu URL real
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvY2dtbWVtZHp4eHVobW1sYWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxNjYzMzUsImV4cCI6MjA1OTc0MjMzNX0.Qp10puEQ7_DY195lzNvbOpjvjkpcwCmsSnfzafvdleU"  # Reemplaza con tu API Key
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Configuración de Supabase
+SUPABASE_URL = "https://socgmmemdzxxuhmmlalp.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvY2dtbWVtZHp4eHVobW1sYWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxNjYzMzUsImV4cCI6MjA1OTc0MjMzNX0.Qp10puEQ7_DY195lzNvbOpjvjkpcwCmsSnfzafvdleU"
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Configuración inicial de la página
+# Configuración de la página
 st.set_page_config(page_title="Portal de Encuestas", page_icon="📊", layout="wide")
 
+# Estado de la sesión
 if 'usuario_autenticado' not in st.session_state:
     st.session_state.usuario_autenticado = None
 if 'encuestas' not in st.session_state:
     st.session_state.encuestas = {}
+
+def verificar_conexion():
+    try:
+        # Consulta simple para verificar conexión
+        res = supabase.table("usuarios").select("usuario").limit(1).execute()
+        return True
+    except Exception as e:
+        st.error(f"Error de conexión con Supabase: {str(e)}")
+        return False
 
 def registrar_usuario():
     st.title("📝 Registro de Usuario")
@@ -27,7 +36,7 @@ def registrar_usuario():
         apellido = st.text_input("Apellido")
         correo = st.text_input("Correo electrónico")
         contrasena = st.text_input("Contraseña", type="password")
-        confirmar = st.text_input("Confirmar contrasena", type="password")
+        confirmar = st.text_input("Confirmar contraseña", type="password")
         submit = st.form_submit_button("Registrar")
 
         if submit:
@@ -35,54 +44,39 @@ def registrar_usuario():
                 st.error("Todos los campos son obligatorios.")
                 return
             if contrasena != confirmar:
-                st.error("Las contrasenas no coinciden.")
+                st.error("Las contraseñas no coinciden.")
                 return
             
             try:
-                # Verificar si usuario existe
-                res = supabase.table("usuarios").select("usuario").eq("usuario", usuario).execute()
-                if len(res.data) > 0:
+                # Verificar si usuario existe (usando el servicio auth de Supabase)
+                res = supabase.rpc('check_user_exists', {'p_usuario': usuario}).execute()
+                if res.data and res.data[0]['exists']:
                     st.error("El nombre de usuario ya existe.")
                     return
                 
-                # Verificar si correo existe - modificado para manejar posibles errores
-                try:
-                    res_correo = supabase.table("usuarios").select("correo").eq("correo", correo).execute()
-                    if len(res_correo.data) > 0:
-                        st.error("El correo electrónico ya está registrado.")
-                        return
-                except Exception as e:
-                    st.error("Error al verificar el correo electrónico. Intente nuevamente.")
+                # Verificar si correo existe
+                res_correo = supabase.rpc('check_email_exists', {'p_correo': correo}).execute()
+                if res_correo.data and res_correo.data[0]['exists']:
+                    st.error("El correo electrónico ya está registrado.")
                     return
                 
                 # Crear hash de contraseña
-                try:
-                    hash_contrasena = bcrypt.hashpw(contrasena.encode(), bcrypt.gensalt()).decode()
-                except Exception as e:
-                    st.error("Error al encriptar la contrasena.")
-                    return
+                hash_contrasena = bcrypt.hashpw(contrasena.encode(), bcrypt.gensalt()).decode()
                 
-                # Insertar nuevo usuario
-                try:
-                    response = supabase.table("usuarios").insert({
-                        "usuario": usuario,
-                        "nombre": nombre,
-                        "apellido": apellido,
-                        "correo": correo,
-                        "contrasena": hash_contrasena
-                    }).execute()
-                    
-                    if len(response.data) > 0:
-                        st.success("Usuario registrado correctamente. Ahora puedes iniciar sesión.")
-                    else:
-                        st.error("No se recibió confirmación del registro. Contacte al administrador.")
-                except Exception as e:
-                    st.error(f"Error al registrar usuario: {str(e)}")
-                    st.error("Por favor verifique los datos o intente más tarde.")
+                # Insertar nuevo usuario usando una función almacenada
+                response = supabase.rpc('register_user', {
+                    'p_usuario': usuario,
+                    'p_nombre': nombre,
+                    'p_apellido': apellido,
+                    'p_correo': correo,
+                    'p_contrasena': hash_contrasena
+                }).execute()
+                
+                st.success("Usuario registrado correctamente. Ahora puedes iniciar sesión.")
                 
             except Exception as e:
-                st.error(f"Error general del sistema: {str(e)}")
-                st.error("Por favor contacte al administrador del sistema.")
+                st.error(f"Error al registrar usuario: {str(e)}")
+                st.error("Por favor verifica tus datos o contacta al administrador.")
 
 def iniciar_sesion():
     st.title("🔐 Iniciar Sesión")
@@ -222,6 +216,10 @@ def portal_encuestas():
         cerrar_sesion()
 
 def main():
+    if not verificar_conexion():
+        st.error("No se pudo conectar con la base de datos. La aplicación no puede continuar.")
+        return
+    
     if st.session_state.usuario_autenticado:
         portal_encuestas()
     else:
