@@ -31,24 +31,43 @@ def registrar_usuario():
         submit = st.form_submit_button("Registrar")
 
         if submit:
-            if not usuario or not nombre or not apellido or not correo or not contrasena:
+            if not all([usuario, nombre, apellido, correo, contrasena]):
                 st.error("Todos los campos son obligatorios.")
-            elif contrasena != confirmar:
+                return
+            if contrasena != confirmar:
                 st.error("Las contraseñas no coinciden.")
-            else:
+                return
+            
+            try:
+                # Verificar si usuario existe
                 res = supabase.table("usuarios").select("*").eq("usuario", usuario).execute()
                 if res.data:
                     st.error("El nombre de usuario ya existe.")
-                else:
-                    hash_contrasena = bcrypt.hashpw(contrasena.encode(), bcrypt.gensalt()).decode()
-                    supabase.table("usuarios").insert({
-                        "usuario": usuario,
-                        "nombre": nombre,
-                        "apellido": apellido,
-                        "correo": correo,
-                        "contrasena": hash_contrasena
-                    }).execute()
-                    st.success("Usuario registrado correctamente. Ahora puedes iniciar sesión.")
+                    return
+                
+                # Verificar si correo existe
+                res_correo = supabase.table("usuarios").select("*").eq("correo", correo).execute()
+                if res_correo.data:
+                    st.error("El correo electrónico ya está registrado.")
+                    return
+                
+                # Crear hash de contraseña
+                hash_contrasena = bcrypt.hashpw(contrasena.encode(), bcrypt.gensalt()).decode()
+                
+                # Insertar nuevo usuario
+                response = supabase.table("usuarios").insert({
+                    "usuario": usuario,
+                    "nombre": nombre,
+                    "apellido": apellido,
+                    "correo": correo,
+                    "contrasena": hash_contrasena
+                }).execute()
+                
+                st.success("Usuario registrado correctamente. Ahora puedes iniciar sesión.")
+                
+            except Exception as e:
+                st.error(f"Error al registrar usuario: {str(e)}")
+                st.error("Por favor verifica la conexión con la base de datos o contacta al administrador.")
 
 def iniciar_sesion():
     st.title("🔐 Iniciar Sesión")
@@ -58,17 +77,20 @@ def iniciar_sesion():
         submit = st.form_submit_button("Iniciar Sesión")
 
         if submit:
-            res = supabase.table("usuarios").select("*").eq("usuario", usuario).execute()
-            if res.data:
-                usuario_data = res.data[0]
-                hash_guardado = usuario_data["contrasena"]
-                if bcrypt.checkpw(contrasena.encode(), hash_guardado.encode()):
-                    st.session_state.usuario_autenticado = usuario
-                    st.success(f"Bienvenido {usuario_data['nombre']} 👋")
+            try:
+                res = supabase.table("usuarios").select("*").eq("usuario", usuario).execute()
+                if res.data:
+                    usuario_data = res.data[0]
+                    hash_guardado = usuario_data["contrasena"]
+                    if bcrypt.checkpw(contrasena.encode(), hash_guardado.encode()):
+                        st.session_state.usuario_autenticado = usuario
+                        st.success(f"Bienvenido {usuario_data['nombre']} 👋")
+                    else:
+                        st.error("Contraseña incorrecta.")
                 else:
-                    st.error("Contraseña incorrecta.")
-            else:
-                st.error("Usuario no encontrado.")
+                    st.error("Usuario no encontrado.")
+            except Exception as e:
+                st.error(f"Error al iniciar sesión: {str(e)}")
 
 def cerrar_sesion():
     st.session_state.usuario_autenticado = None
@@ -96,6 +118,7 @@ def crear_encuesta():
             else:
                 opciones = []
             preguntas.append({"texto": texto_pregunta, "tipo": tipo_pregunta, "opciones": opciones})
+        
         if st.form_submit_button("Guardar Encuesta"):
             if titulo:
                 st.session_state.encuestas[titulo] = {
@@ -196,4 +219,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
