@@ -40,35 +40,50 @@ def registrar_usuario():
             
             try:
                 # Verificar si usuario existe
-                res = supabase.table("usuarios").select("*").eq("usuario", usuario).execute()
-                if res.data:
+                res = supabase.table("usuarios").select("usuario").eq("usuario", usuario).execute()
+                if len(res.data) > 0:
                     st.error("El nombre de usuario ya existe.")
                     return
                 
-                # Verificar si correo existe
-                res_correo = supabase.table("usuarios").select("*").eq("correo", correo).execute()
-                if res_correo.data:
-                    st.error("El correo electrónico ya está registrado.")
+                # Verificar si correo existe - modificado para manejar posibles errores
+                try:
+                    res_correo = supabase.table("usuarios").select("correo").eq("correo", correo).execute()
+                    if len(res_correo.data) > 0:
+                        st.error("El correo electrónico ya está registrado.")
+                        return
+                except Exception as e:
+                    st.error("Error al verificar el correo electrónico. Intente nuevamente.")
                     return
                 
                 # Crear hash de contraseña
-                hash_contrasena = bcrypt.hashpw(contrasena.encode(), bcrypt.gensalt()).decode()
+                try:
+                    hash_contrasena = bcrypt.hashpw(contrasena.encode(), bcrypt.gensalt()).decode()
+                except Exception as e:
+                    st.error("Error al encriptar la contraseña.")
+                    return
                 
                 # Insertar nuevo usuario
-                response = supabase.table("usuarios").insert({
-                    "usuario": usuario,
-                    "nombre": nombre,
-                    "apellido": apellido,
-                    "correo": correo,
-                    "contrasena": hash_contrasena
-                }).execute()
-                
-                st.success("Usuario registrado correctamente. Ahora puedes iniciar sesión.")
+                try:
+                    response = supabase.table("usuarios").insert({
+                        "usuario": usuario,
+                        "nombre": nombre,
+                        "apellido": apellido,
+                        "correo": correo,
+                        "contrasena": hash_contrasena
+                    }).execute()
+                    
+                    if len(response.data) > 0:
+                        st.success("Usuario registrado correctamente. Ahora puedes iniciar sesión.")
+                    else:
+                        st.error("No se recibió confirmación del registro. Contacte al administrador.")
+                except Exception as e:
+                    st.error(f"Error al registrar usuario: {str(e)}")
+                    st.error("Por favor verifique los datos o intente más tarde.")
                 
             except Exception as e:
-                st.error(f"Error al registrar usuario: {str(e)}")
-                st.error("Por favor verifica la conexión con la base de datos o contacta al administrador.")
-
+                st.error(f"Error general del sistema: {str(e)}")
+                st.error("Por favor contacte al administrador del sistema.")
+                
 def iniciar_sesion():
     st.title("🔐 Iniciar Sesión")
     with st.form("form_login"):
