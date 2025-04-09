@@ -27,7 +27,7 @@ def registrar_usuario():
         apellido = st.text_input("Apellido")
         correo = st.text_input("Correo electrónico")
         contrasena = st.text_input("Contraseña", type="password")
-        confirmar = st.text_input("Confirmar contraseña", type="password")
+        confirmar = st.text_input("Confirmar contrasena", type="password")
         submit = st.form_submit_button("Registrar")
 
         if submit:
@@ -35,7 +35,7 @@ def registrar_usuario():
                 st.error("Todos los campos son obligatorios.")
                 return
             if contrasena != confirmar:
-                st.error("Las contraseñas no coinciden.")
+                st.error("Las contrasenas no coinciden.")
                 return
             
             try:
@@ -59,7 +59,7 @@ def registrar_usuario():
                 try:
                     hash_contrasena = bcrypt.hashpw(contrasena.encode(), bcrypt.gensalt()).decode()
                 except Exception as e:
-                    st.error("Error al encriptar la contraseña.")
+                    st.error("Error al encriptar la contrasena.")
                     return
                 
                 # Insertar nuevo usuario
@@ -83,12 +83,12 @@ def registrar_usuario():
             except Exception as e:
                 st.error(f"Error general del sistema: {str(e)}")
                 st.error("Por favor contacte al administrador del sistema.")
-                
+
 def iniciar_sesion():
     st.title("🔐 Iniciar Sesión")
     with st.form("form_login"):
         usuario = st.text_input("Usuario")
-        contrasena = st.text_input("Contraseña", type="password")
+        contrasena = st.text_input("contrasena", type="password")
         submit = st.form_submit_button("Iniciar Sesión")
 
         if submit:
