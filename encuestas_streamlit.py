@@ -15,8 +15,8 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 st.set_page_config(page_title="Encuestas", layout="wide")
 
-if "id" not in st.session_state:
-    st.session_state.id = None
+if "usuario" not in st.session_state:
+    st.session_state.usuario = None
 
 # ---------------- FUNCIONES AUXILIARES ----------------
 
