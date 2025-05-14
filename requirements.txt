@@ -5,4 +5,3 @@ seaborn
 bcrypt
 supabase
 qrcode
-json
