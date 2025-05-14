@@ -126,8 +126,49 @@ def crear_encuesta():
             st.markdown(f"[Haz clic aquí para acceder a la encuesta]({enlace})")
             st.image(generar_qr(enlace), caption="Escanea para responder")
 
+def mostrar_encuesta_publica(encuesta_id):
+    try:
+        encuesta = supabase.table("encuestas").select("*").eq("id", encuesta_id).single().execute()
+        if not encuesta.data:
+            st.error("Encuesta no encontrada.")
+            return
+
+        datos = encuesta.data
+        st.title(f"📋 {datos['titulo']}")
+        st.markdown(f"**Descripción:** {datos['descripcion']}")
+        preguntas = json.loads(datos["preguntas"])
+        respuestas = []
+
+        with st.form("form_responder_encuesta"):
+            for i, pregunta in enumerate(preguntas):
+                st.markdown(f"**{pregunta['texto']}**")
+                if pregunta["tipo"] == "Texto":
+                    respuesta = st.text_input(f"Respuesta {i+1}", key=f"respuesta_{i}")
+                elif pregunta["tipo"] == "Opción múltiple":
+                    respuesta = st.radio("Selecciona una opción", pregunta["opciones"], key=f"respuesta_{i}")
+                elif pregunta["tipo"] == "Escala (1-5)":
+                    respuesta = st.slider("Selecciona una puntuación", 1, 5, key=f"respuesta_{i}")
+                respuestas.append(respuesta)
+
+            if st.form_submit_button("Enviar respuestas"):
+                supabase.table("respuestas").insert({
+                    "encuesta_id": encuesta_id,
+                    "respuestas": json.dumps(respuestas)
+                }).execute()
+                st.success("¡Gracias por responder la encuesta! 🎉")
+
+    except Exception as e:
+        st.error(f"Ocurrió un error al cargar la encuesta: {str(e)}")
+
 def main():
     if not verificar_conexion():
+        return
+
+    query_params = st.experimental_get_query_params()
+    encuesta_id = query_params.get("id", [None])[0]
+
+    if encuesta_id:
+        mostrar_encuesta_publica(encuesta_id)
         return
 
     if st.session_state.usuario_autenticado:
@@ -146,6 +187,7 @@ def main():
             iniciar_sesion()
         elif opcion == "Registrarse":
             registrar_usuario()
+
 
 if __name__ == "__main__":
     main()
