@@ -3,7 +3,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import bcrypt
+import qrcode
+import io
 from supabase import create_client, Client
+from urllib.parse import urlencode
 
 # Configuración de Supabase
 SUPABASE_URL = "https://socgmmemdzxxuhmmlalp.supabase.co"
@@ -28,6 +31,12 @@ def verificar_conexion():
     except Exception as e:
         st.error(f"Error de conexión con Supabase: {str(e)}")
         return False
+
+def generar_qr(url):
+    qr = qrcode.make(url)
+    buffer = io.BytesIO()
+    qr.save(buffer, format="PNG")
+    return buffer.getvalue()
 
 def registrar_usuario():
     st.title("📝 Registro de Usuario")
@@ -56,7 +65,7 @@ def registrar_usuario():
 
                 # Verificar si el correo ya existe
                 res_correo = supabase.rpc('check_email_exists', {'p_correo': correo}).execute()
-                if res_correo.data and res_correo.data[0]['exists']:
+                if res_correo.data and res_correo[0]['exists']:
                     st.error("El correo electrónico ya está registrado.")
                     return
 
@@ -146,17 +155,34 @@ def crear_encuesta():
                     "respuestas": []
                 }
                 st.success(f"Encuesta '{titulo}' creada con éxito.")
+
+                # Generar URL y código QR
+                base_url = st.request.url.replace("?encuesta=", "").split("?")[0]
+                query_params = urlencode({"encuesta": titulo})
+                url_encuesta = f"{base_url}?{query_params}"
+                qr_bytes = generar_qr(url_encuesta)
+
+                st.markdown("### Escanea el código QR para compartir la encuesta:")
+                st.image(qr_bytes)
+                st.markdown(f"[También puedes copiar este enlace]({url_encuesta})")
+
             else:
                 st.error("El título es obligatorio.")
 
-def responder_encuesta():
+def responder_encuesta(encuesta_param=None):
     st.subheader("Responder Encuesta")
-    if not st.session_state.encuestas:
+    encuestas = st.session_state.encuestas
+
+    if not encuestas:
         st.warning("No hay encuestas disponibles para responder.")
         return
 
-    seleccion = st.selectbox("Selecciona una encuesta", list(st.session_state.encuestas.keys()))
-    encuesta = st.session_state.encuestas[seleccion]
+    if encuesta_param and encuesta_param in encuestas:
+        seleccion = encuesta_param
+    else:
+        seleccion = st.selectbox("Selecciona una encuesta", list(encuestas.keys()))
+
+    encuesta = encuestas[seleccion]
     st.markdown(f"### {seleccion}")
     st.write(encuesta["descripcion"])
 
@@ -218,7 +244,7 @@ def analizar_encuesta():
 
 # ---------------- MAIN ----------------
 
-def portal_encuestas():
+def portal_encuestas(encuesta_param=None):
     st.sidebar.title("Menú")
     opcion = st.sidebar.radio("Selecciona una opción:", ["Inicio", "Crear Encuesta", "Responder Encuesta", "Analizar Encuesta", "Cerrar Sesión"])
 
@@ -228,7 +254,7 @@ def portal_encuestas():
     elif opcion == "Crear Encuesta":
         crear_encuesta()
     elif opcion == "Responder Encuesta":
-        responder_encuesta()
+        responder_encuesta(encuesta_param)
     elif opcion == "Analizar Encuesta":
         analizar_encuesta()
     elif opcion == "Cerrar Sesión":
@@ -239,8 +265,11 @@ def main():
         st.error("No se pudo conectar con la base de datos.")
         return
 
+    # Detectar parámetro en la URL (solo funciona al desplegarlo con query params)
+    encuesta_param = st.query_params.get("encuesta", [None])[0]
+
     if st.session_state.usuario_autenticado:
-        portal_encuestas()
+        portal_encuestas(encuesta_param)
     else:
         st.sidebar.title("Acceso")
         opcion = st.sidebar.radio("Selecciona una opción:", ["Iniciar Sesión", "Registrarse"])
