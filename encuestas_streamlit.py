@@ -10,7 +10,7 @@ from supabase import create_client
 
 # Configuración de Supabase
 SUPABASE_URL = "https://socgmmemdzxxuhmmlalp.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  # Usa tu clave completa aquí
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvY2dtbWVtZHp4eHVobW1sYWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxNjYzMzUsImV4cCI6MjA1OTc0MjMzNX0.Qp10puEQ7_DY195lzNvbOpjvjkpcwCmsSnfzafvdleU"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Configuración de la página
@@ -192,3 +192,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
