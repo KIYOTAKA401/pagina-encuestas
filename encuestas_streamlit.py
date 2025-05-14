@@ -126,43 +126,6 @@ def crear_encuesta():
             st.markdown(f"[Haz clic aquí para acceder a la encuesta]({enlace})")
             st.image(generar_qr(enlace), caption="Escanea para responder")
 
-def mostrar_encuesta_publica(encuesta_id):
-    try:
-        res = supabase.table("encuestas").select("*").eq("id", encuesta_id).execute()
-        if not res.data:
-            st.error("Encuesta no encontrada.")
-            return
-
-        encuesta = res.data[0]
-        st.title(encuesta["titulo"])
-        st.write(encuesta["descripcion"])
-
-        preguntas = json.loads(encuesta["preguntas"])
-        respuestas = []
-
-        with st.form("form_respuesta"):
-            for i, pregunta in enumerate(preguntas):
-                if pregunta["tipo"] == "Texto":
-                    respuesta = st.text_input(pregunta["texto"], key=f"resp_{i}")
-                elif pregunta["tipo"] == "Opción múltiple":
-                    respuesta = st.radio(pregunta["texto"], pregunta["opciones"], key=f"resp_{i}")
-                elif pregunta["tipo"] == "Escala (1-5)":
-                    respuesta = st.slider(pregunta["texto"], 1, 5, key=f"resp_{i}")
-                else:
-                    respuesta = ""
-                respuestas.append({"pregunta": pregunta["texto"], "respuesta": respuesta})
-
-            if st.form_submit_button("Enviar respuestas"):
-                supabase.table("respuestas").insert({
-                    "encuesta_id": encuesta_id,
-                    "respuestas": json.dumps(respuestas)
-                }).execute()
-                st.success("Gracias por tu participación 🎉")
-
-    except Exception as e:
-        st.error(f"Error al cargar la encuesta: {str(e)}")
-
-
 def main():
     if not verificar_conexion():
         return
@@ -191,6 +154,41 @@ def main():
         elif opcion == "Registrarse":
             registrar_usuario()
 
+def mostrar_encuesta_publica(encuesta_id):
+    try:
+        res = supabase.table("encuestas").select("*").eq("id", encuesta_id).execute()
+        if not res.data:
+            st.error("Encuesta no encontrada.")
+            return
+
+        encuesta = res.data[0]
+        st.title(f"📊 {encuesta['titulo']}")
+        st.write(encuesta['descripcion'])
+        preguntas = json.loads(encuesta["preguntas"])
+        respuestas = {}
+
+        with st.form("form_responder_encuesta"):
+            for i, pregunta in enumerate(preguntas):
+                st.markdown(f"**{pregunta['texto']}**")
+                if pregunta["tipo"] == "Texto":
+                    respuesta = st.text_input("Tu respuesta:", key=f"respuesta_{i}")
+                elif pregunta["tipo"] == "Opción múltiple":
+                    respuesta = st.radio("Selecciona una opción:", pregunta["opciones"], key=f"respuesta_{i}")
+                elif pregunta["tipo"] == "Escala (1-5)":
+                    respuesta = st.slider("Selecciona un valor:", 1, 5, key=f"respuesta_{i}")
+                else:
+                    respuesta = ""
+                respuestas[pregunta["texto"]] = respuesta
+
+            if st.form_submit_button("Enviar respuestas"):
+                supabase.table("respuestas").insert({
+                    "encuesta_id": encuesta_id,
+                    "respuestas": json.dumps(respuestas)
+                }).execute()
+                st.success("✅ ¡Gracias por responder la encuesta!")
+
+    except Exception as e:
+        st.error(f"Error al mostrar la encuesta: {str(e)}")
 
 if __name__ == "__main__":
     main()
