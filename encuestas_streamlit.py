@@ -124,7 +124,7 @@ def analizar_encuesta(encuesta):
 # ---------------- MAIN ----------------
 
 def main():
-    query = st.experimental_get_query_params()
+    query = st.query_params
     encuesta_id = query.get("encuesta", [None])[0]
 
     if encuesta_id:
