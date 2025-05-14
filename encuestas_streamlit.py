@@ -114,48 +114,60 @@ def cerrar_sesion():
 def crear_encuesta():
     st.subheader("Crear Nueva Encuesta")
 
-    # Paso 1: Capturar título y descripción (antes del form)
     titulo = st.text_input("Título de la encuesta")
     descripcion = st.text_area("Descripción")
-    num_preguntas = st.number_input("Número de preguntas", min_value=1, max_value=20, value=3)
+    num_preguntas = st.number_input("Número de preguntas", min_value=1, max_value=20, value=3, step=1)
 
-    preguntas = []
     tipos_pregunta = ["Texto abierto", "Selección múltiple", "Escala (1-5)"]
 
+    if "borrador_encuesta" not in st.session_state:
+        st.session_state.borrador_encuesta = {}
+
     for i in range(num_preguntas):
-        with st.expander(f"Pregunta {i+1}", expanded=True):
-            texto = st.text_input(f"Texto de la pregunta {i+1}", key=f"pregunta_{i}")
-            tipo = st.selectbox(f"Tipo de pregunta {i+1}", tipos_pregunta, key=f"tipo_{i}")
+        st.markdown(f"### Pregunta {i+1}")
+        texto = st.text_input(f"Texto de la pregunta {i+1}", key=f"texto_pregunta_{i}")
+        tipo = st.selectbox(f"Tipo de pregunta {i+1}", tipos_pregunta, key=f"tipo_pregunta_{i}")
 
-            opciones = []
-            if tipo == "Selección múltiple":
-                if f"opciones_{i}" not in st.session_state:
-                    st.session_state[f"opciones_{i}"] = []
+        opciones_key = f"opciones_pregunta_{i}"
+        if tipo == "Selección múltiple":
+            if opciones_key not in st.session_state:
+                st.session_state[opciones_key] = []
 
-                nueva = st.text_input(f"Nueva opción para la pregunta {i+1}", key=f"nueva_opcion_{i}")
-                if st.button(f"Agregar opción a pregunta {i+1}", key=f"agregar_opcion_{i}"):
-                    if nueva.strip():
-                        st.session_state[f"opciones_{i}"].append(nueva.strip())
-                        st.experimental_rerun()
+            nueva_opcion = st.text_input(f"Agregar opción a pregunta {i+1}", key=f"nueva_opcion_{i}")
+            if st.button(f"➕ Agregar opción a pregunta {i+1}", key=f"btn_agregar_opcion_{i}"):
+                if nueva_opcion.strip():
+                    st.session_state[opciones_key].append(nueva_opcion.strip())
+                    st.experimental_rerun()
 
-                opciones = st.session_state[f"opciones_{i}"]
-                if opciones:
-                    st.write("Opciones actuales:")
-                    for op in opciones:
-                        st.markdown(f"- {op}")
-
-            preguntas.append({"texto": texto, "tipo": tipo, "opciones": opciones})
+            if st.session_state[opciones_key]:
+                st.write("Opciones actuales:")
+                for op in st.session_state[opciones_key]:
+                    st.markdown(f"- {op}")
 
     if st.button("Guardar Encuesta"):
-        if titulo:
+        preguntas = []
+        for i in range(num_preguntas):
+            texto = st.session_state.get(f"texto_pregunta_{i}", "")
+            tipo = st.session_state.get(f"tipo_pregunta_{i}", "")
+            opciones = st.session_state.get(f"opciones_pregunta_{i}", []) if tipo == "Selección múltiple" else []
+            preguntas.append({"texto": texto, "tipo": tipo, "opciones": opciones})
+
+        if titulo and all(p["texto"] for p in preguntas):
             st.session_state.encuestas[titulo] = {
                 "descripcion": descripcion,
                 "preguntas": preguntas,
                 "respuestas": []
             }
-            st.success(f"Encuesta '{titulo}' creada con éxito.")
+
+            # Generar código QR al crear encuesta
+            qr_url = f"{st.secrets.get('base_url', 'https://pagina-encuestas-zvfefqjjv3cagabjpvwexj.streamlit.app/')}?encuesta={titulo.replace(' ', '%20')}"
+            qr = qrcode.make(qr_url)
+            buf = io.BytesIO()
+            qr.save(buf)
+            st.success(f"Encuesta '{titulo}' creada exitosamente.")
+            st.image(buf.getvalue(), caption="Escanea este QR para responder la encuesta", use_column_width=False)
         else:
-            st.error("El título es obligatorio.")
+            st.error("Falta completar el título o algunas preguntas.")
 
 def responder_encuesta(encuesta_param=None):
     st.subheader("Responder Encuesta")
