@@ -7,6 +7,7 @@ from supabase import create_client
 from io import BytesIO
 import qrcode
 import uuid
+import json
 
 # Configuración de Supabase
 SUPABASE_URL = "https://socgmmemdzxxuhmmlalp.supabase.co"
@@ -117,10 +118,10 @@ def crear_encuesta():
                 "id": encuesta_id,
                 "titulo": titulo,
                 "descripcion": descripcion,
-                "preguntas": preguntas
+                "preguntas": json.dumps(preguntas)
             }).execute()
 
-            enlace = f"https://tuapp.streamlit.app/?encuesta_id={encuesta_id}"
+            enlace = f"https://pagina-encuestas-zvfefqjjv3cagabjpvwexj.streamlit.app/{encuesta_id}"
             st.success("Encuesta creada con éxito")
             st.markdown(f"[Haz clic aquí para acceder a la encuesta]({enlace})")
             st.image(generar_qr(enlace), caption="Escanea para responder")
