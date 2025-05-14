@@ -4,22 +4,22 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import bcrypt
 import qrcode
-import io
-from supabase import create_client, Client
-from urllib.parse import urlencode
+import uuid
+from io import BytesIO
+from supabase import create_client
 
 # Configuración de Supabase
 SUPABASE_URL = "https://socgmmemdzxxuhmmlalp.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNvY2dtbWVtZHp4eHVobW1sYWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxNjYzMzUsImV4cCI6MjA1OTc0MjMzNX0.Qp10puEQ7_DY195lzNvbOpjvjkpcwCmsSnfzafvdleU"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  # Usa tu clave completa aquí
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Configuración de la página
 st.set_page_config(page_title="Portal de Encuestas", page_icon="📊", layout="wide")
 
 # Estado de la sesión
-if 'usuario_autenticado' not in st.session_state:
+if "usuario_autenticado" not in st.session_state:
     st.session_state.usuario_autenticado = None
-if 'encuestas' not in st.session_state:
+if "encuestas" not in st.session_state:
     st.session_state.encuestas = {}
 
 # ---------------- FUNCIONES AUXILIARES ----------------
@@ -31,12 +31,6 @@ def verificar_conexion():
     except Exception as e:
         st.error(f"Error de conexión con Supabase: {str(e)}")
         return False
-
-def generar_qr(url):
-    qr = qrcode.make(url)
-    buffer = io.BytesIO()
-    qr.save(buffer, format="PNG")
-    return buffer.getvalue()
 
 def registrar_usuario():
     st.title("📝 Registro de Usuario")
@@ -57,15 +51,13 @@ def registrar_usuario():
                 st.error("Las contraseñas no coinciden.")
                 return
             try:
-                # Verificar si el usuario ya existe
                 res = supabase.rpc('check_user_exists', {'p_usuario': usuario}).execute()
                 if res.data and res.data[0]['exists']:
                     st.error("El nombre de usuario ya existe.")
                     return
 
-                # Verificar si el correo ya existe
                 res_correo = supabase.rpc('check_email_exists', {'p_correo': correo}).execute()
-                if res_correo.data and res_correo[0]['exists']:
+                if res_correo.data and res_correo.data[0]['exists']:
                     st.error("El correo electrónico ya está registrado.")
                     return
 
@@ -109,164 +101,84 @@ def cerrar_sesion():
     st.session_state.usuario_autenticado = None
     st.success("Sesión cerrada correctamente.")
 
-# ---------------- FUNCIONES DE ENCUESTA ----------------
+def guardar_encuesta(titulo, descripcion, preguntas):
+    id_encuesta = str(uuid.uuid4())
+    encuesta_data = {
+        "id": id_encuesta,
+        "titulo": titulo,
+        "descripcion": descripcion,
+        "preguntas": preguntas
+    }
+    supabase.table("encuestas").insert(encuesta_data).execute()
+    return id_encuesta
+
+def generar_qr(url):
+    qr = qrcode.make(url)
+    buffer = BytesIO()
+    qr.save(buffer, format="PNG")
+    return buffer
+
+# ---------------- FUNCIONES PRINCIPALES ----------------
 
 def crear_encuesta():
     st.subheader("Crear Nueva Encuesta")
-
-    titulo = st.text_input("Título de la encuesta")
-    descripcion = st.text_area("Descripción")
-    num_preguntas = st.number_input("Número de preguntas", min_value=1, max_value=20, value=3, step=1)
-
-    tipos_pregunta = ["Texto abierto", "Selección múltiple", "Escala (1-5)"]
-
-    if "borrador_encuesta" not in st.session_state:
-        st.session_state.borrador_encuesta = {}
-
-    for i in range(num_preguntas):
-        st.markdown(f"### Pregunta {i+1}")
-        texto = st.text_input(f"Texto de la pregunta {i+1}", key=f"texto_pregunta_{i}")
-        tipo = st.selectbox(f"Tipo de pregunta {i+1}", tipos_pregunta, key=f"tipo_pregunta_{i}")
-
-        opciones_key = f"opciones_pregunta_{i}"
-        if tipo == "Selección múltiple":
-            if opciones_key not in st.session_state:
-                st.session_state[opciones_key] = []
-
-            nueva_opcion = st.text_input(f"Agregar opción a pregunta {i+1}", key=f"nueva_opcion_{i}")
-            if st.button(f"➕ Agregar opción a pregunta {i+1}", key=f"btn_agregar_opcion_{i}"):
-                if nueva_opcion.strip():
-                    st.session_state[opciones_key].append(nueva_opcion.strip())
-                    st.experimental_rerun()
-
-            if st.session_state[opciones_key]:
-                st.write("Opciones actuales:")
-                for op in st.session_state[opciones_key]:
-                    st.markdown(f"- {op}")
-
-    if st.button("Guardar Encuesta"):
+    with st.form("form_crear_encuesta"):
+        titulo = st.text_input("Título de la encuesta")
+        descripcion = st.text_area("Descripción")
+        num_preguntas = st.number_input("Número de preguntas", min_value=1, max_value=10, value=3)
+        tipos_pregunta = ["Texto abierto", "Selección múltiple", "Escala (1-5)"]
         preguntas = []
+
         for i in range(num_preguntas):
-            texto = st.session_state.get(f"texto_pregunta_{i}", "")
-            tipo = st.session_state.get(f"tipo_pregunta_{i}", "")
-            opciones = st.session_state.get(f"opciones_pregunta_{i}", []) if tipo == "Selección múltiple" else []
-            preguntas.append({"texto": texto, "tipo": tipo, "opciones": opciones})
+            st.markdown(f"### Pregunta {i+1}")
+            texto = st.text_input(f"Texto de la pregunta {i+1}", key=f"preg_{i}")
+            tipo = st.selectbox(f"Tipo de pregunta {i+1}", tipos_pregunta, key=f"tipo_{i}")
 
-        if titulo and all(p["texto"] for p in preguntas):
-            st.session_state.encuestas[titulo] = {
-                "descripcion": descripcion,
-                "preguntas": preguntas,
-                "respuestas": []
-            }
+            opciones = []
+            if tipo == "Selección múltiple":
+                opciones_raw = st.text_area(f"Opciones (una por línea) para pregunta {i+1}", key=f"opciones_{i}")
+                opciones = [o.strip() for o in opciones_raw.split("\n") if o.strip()]
 
-            # Generar código QR al crear encuesta
-            qr_url = f"{st.secrets.get('base_url', 'https://pagina-encuestas-zvfefqjjv3cagabjpvwexj.streamlit.app/')}?encuesta={titulo.replace(' ', '%20')}"
-            qr = qrcode.make(qr_url)
-            buf = io.BytesIO()
-            qr.save(buf)
-            st.success(f"Encuesta '{titulo}' creada exitosamente.")
-            st.image(buf.getvalue(), caption="Escanea este QR para responder la encuesta", use_column_width=False)
-        else:
-            st.error("Falta completar el título o algunas preguntas.")
+            preguntas.append({
+                "texto": texto,
+                "tipo": tipo,
+                "opciones": opciones
+            })
 
-def responder_encuesta(encuesta_param=None):
-    st.subheader("Responder Encuesta")
-    encuestas = st.session_state.encuestas
+        submit = st.form_submit_button("Guardar Encuesta")
+        if submit:
+            if not titulo:
+                st.error("El título es obligatorio.")
+                return
 
-    if not encuestas:
-        st.warning("No hay encuestas disponibles para responder.")
-        return
+            id_encuesta = guardar_encuesta(titulo, descripcion, preguntas)
+            st.success(f"Encuesta '{titulo}' guardada correctamente.")
 
-    if encuesta_param and encuesta_param in encuestas:
-        seleccion = encuesta_param
-    else:
-        seleccion = st.selectbox("Selecciona una encuesta", list(encuestas.keys()))
+            base_url = st.secrets.get("base_url", "https://pagina-encuestas-zvfefqjjv3cagabjpvwexj.streamlit.app/")  # Puedes definirlo en .streamlit/secrets.toml
+            url_encuesta = f"{base_url}?encuesta={id_encuesta}"
 
-    encuesta = encuestas[seleccion]
-    st.markdown(f"### {seleccion}")
-    st.write(encuesta["descripcion"])
-
-    with st.form("form_responder_encuesta"):
-        respuestas = []
-        for i, pregunta in enumerate(encuesta["preguntas"]):
-            st.markdown(f"**{i+1}. {pregunta['texto']}**")
-            if pregunta["tipo"] == "Texto abierto":
-                r = st.text_area("Tu respuesta", key=f"respuesta_{i}")
-            elif pregunta["tipo"] == "Selección múltiple":
-                r = st.radio("Selecciona una opción", pregunta["opciones"], key=f"respuesta_{i}")
-            elif pregunta["tipo"] == "Escala (1-5)":
-                r = st.slider("Selecciona un valor", 1, 5, 3, key=f"respuesta_{i}")
-            respuestas.append(r)
-
-        if st.form_submit_button("Enviar Respuesta"):
-            encuesta["respuestas"].append(respuestas)
-            st.success("¡Gracias por responder la encuesta!")
-
-def analizar_encuesta():
-    st.subheader("Análisis de Encuestas")
-    if not st.session_state.encuestas:
-        st.warning("No hay encuestas para analizar.")
-        return
-
-    seleccion = st.selectbox("Selecciona una encuesta", list(st.session_state.encuestas.keys()))
-    encuesta = st.session_state.encuestas[seleccion]
-    st.markdown(f"## Análisis de: {seleccion}")
-    st.write(f"**Descripción:** {encuesta['descripcion']}")
-    st.write(f"**Total de respuestas:** {len(encuesta['respuestas'])}")
-
-    if not encuesta["respuestas"]:
-        st.warning("Esta encuesta no tiene respuestas aún.")
-        return
-
-    for i, pregunta in enumerate(encuesta["preguntas"]):
-        st.markdown(f"### Pregunta {i+1}: {pregunta['texto']}")
-        respuestas_pregunta = [r[i] for r in encuesta["respuestas"]]
-        if pregunta["tipo"] == "Texto abierto":
-            for j, r in enumerate(respuestas_pregunta, 1):
-                st.write(f"{j}. {r}")
-        else:
-            df = pd.DataFrame({"respuesta": respuestas_pregunta})
-            st.write("**Estadísticas:**")
-            st.write(df["respuesta"].describe())
-            st.write("**Distribución:**")
-            fig, ax = plt.subplots()
-            if pregunta["tipo"] == "Escala (1-5)":
-                sns.histplot(df, x="respuesta", bins=5, discrete=True, ax=ax)
-                ax.set_xticks(range(1, 6))
-            else:
-                sns.countplot(data=df, y="respuesta", ax=ax, order=df["respuesta"].value_counts().index)
-            st.pyplot(fig)
-
-            st.write("**Frecuencia:**")
-            freq = df["respuesta"].value_counts().reset_index()
-            freq.columns = ["Respuesta", "Frecuencia"]
-            st.dataframe(freq)
-
-# ---------------- MAIN ----------------
+            qr_buffer = generar_qr(url_encuesta)
+            st.image(qr_buffer, caption="Escanea para responder la encuesta", use_column_width=False)
+            st.markdown(f"[🔗 Ir a la encuesta]({url_encuesta})")
 
 def portal_encuestas(encuesta_param=None):
     st.sidebar.title("Menú")
-    opcion = st.sidebar.radio("Selecciona una opción:", ["Inicio", "Crear Encuesta", "Responder Encuesta", "Analizar Encuesta", "Cerrar Sesión"])
+    opcion = st.sidebar.radio("Selecciona una opción:", ["Inicio", "Crear Encuesta", "Cerrar Sesión"])
 
     if opcion == "Inicio":
         st.write("## Bienvenido al Portal de Encuestas 📊")
+        if encuesta_param:
+            st.success(f"Encuesta cargada desde QR: {encuesta_param}")
         st.write("Crea, responde y analiza encuestas fácilmente.")
     elif opcion == "Crear Encuesta":
         crear_encuesta()
-    elif opcion == "Responder Encuesta":
-        responder_encuesta(encuesta_param)
-    elif opcion == "Analizar Encuesta":
-        analizar_encuesta()
     elif opcion == "Cerrar Sesión":
         cerrar_sesion()
 
 def main():
+    encuesta_param = st.query_params.get("encuesta")
     if not verificar_conexion():
-        st.error("No se pudo conectar con la base de datos.")
-        return
-
-    # Detectar parámetro en la URL (solo funciona al desplegarlo con query params)
-    encuesta_param = st.query_params.get("encuesta", [None])[0]
+        st.stop()
 
     if st.session_state.usuario_autenticado:
         portal_encuestas(encuesta_param)
