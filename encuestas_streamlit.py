@@ -113,20 +113,19 @@ def cerrar_sesion():
 
 def crear_encuesta():
     st.subheader("Crear Nueva Encuesta")
-    with st.form("form_crear_encuesta"):
-        titulo = st.text_input("Título de la encuesta")
-        descripcion = st.text_area("Descripción")
-        num_preguntas = st.number_input("Número de preguntas", min_value=1, max_value=20, value=3)
-        preguntas = []
-        tipos_pregunta = ["Texto abierto", "Selección múltiple", "Escala (1-5)"]
 
-        for i in range(num_preguntas):
-            st.markdown(f"### Pregunta {i+1}")
-            col1, col2 = st.columns(2)
-            with col1:
-                texto = st.text_input(f"Texto de la pregunta {i+1}", key=f"pregunta_{i}")
-            with col2:
-                tipo = st.selectbox(f"Tipo de pregunta {i+1}", tipos_pregunta, key=f"tipo_{i}")
+    # Paso 1: Capturar título y descripción (antes del form)
+    titulo = st.text_input("Título de la encuesta")
+    descripcion = st.text_area("Descripción")
+    num_preguntas = st.number_input("Número de preguntas", min_value=1, max_value=20, value=3)
+
+    preguntas = []
+    tipos_pregunta = ["Texto abierto", "Selección múltiple", "Escala (1-5)"]
+
+    for i in range(num_preguntas):
+        with st.expander(f"Pregunta {i+1}", expanded=True):
+            texto = st.text_input(f"Texto de la pregunta {i+1}", key=f"pregunta_{i}")
+            tipo = st.selectbox(f"Tipo de pregunta {i+1}", tipos_pregunta, key=f"tipo_{i}")
 
             opciones = []
             if tipo == "Selección múltiple":
@@ -134,10 +133,10 @@ def crear_encuesta():
                     st.session_state[f"opciones_{i}"] = []
 
                 nueva = st.text_input(f"Nueva opción para la pregunta {i+1}", key=f"nueva_opcion_{i}")
-                agregar = st.button(f"Agregar opción a pregunta {i+1}", key=f"agregar_opcion_{i}")
-                if agregar and nueva.strip():
-                    st.session_state[f"opciones_{i}"].append(nueva.strip())
-                    st.experimental_rerun()
+                if st.button(f"Agregar opción a pregunta {i+1}", key=f"agregar_opcion_{i}"):
+                    if nueva.strip():
+                        st.session_state[f"opciones_{i}"].append(nueva.strip())
+                        st.experimental_rerun()
 
                 opciones = st.session_state[f"opciones_{i}"]
                 if opciones:
@@ -147,27 +146,16 @@ def crear_encuesta():
 
             preguntas.append({"texto": texto, "tipo": tipo, "opciones": opciones})
 
-        if st.form_submit_button("Guardar Encuesta"):
-            if titulo:
-                st.session_state.encuestas[titulo] = {
-                    "descripcion": descripcion,
-                    "preguntas": preguntas,
-                    "respuestas": []
-                }
-                st.success(f"Encuesta '{titulo}' creada con éxito.")
-
-                # Generar URL y código QR
-                base_url = st.request.url.replace("?encuesta=", "").split("?")[0]
-                query_params = urlencode({"encuesta": titulo})
-                url_encuesta = f"{base_url}?{query_params}"
-                qr_bytes = generar_qr(url_encuesta)
-
-                st.markdown("### Escanea el código QR para compartir la encuesta:")
-                st.image(qr_bytes)
-                st.markdown(f"[También puedes copiar este enlace]({url_encuesta})")
-
-            else:
-                st.error("El título es obligatorio.")
+    if st.button("Guardar Encuesta"):
+        if titulo:
+            st.session_state.encuestas[titulo] = {
+                "descripcion": descripcion,
+                "preguntas": preguntas,
+                "respuestas": []
+            }
+            st.success(f"Encuesta '{titulo}' creada con éxito.")
+        else:
+            st.error("El título es obligatorio.")
 
 def responder_encuesta(encuesta_param=None):
     st.subheader("Responder Encuesta")
