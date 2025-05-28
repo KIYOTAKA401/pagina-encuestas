@@ -118,7 +118,6 @@ def crear_encuesta():
     if "opciones_preguntas" not in st.session_state:
         st.session_state.opciones_preguntas = [""] * 10
 
-    # Configurador fuera del formulario
     st.session_state.num_preguntas = st.slider(
         "Selecciona el número de preguntas",
         min_value=1,
@@ -126,32 +125,32 @@ def crear_encuesta():
         value=st.session_state.num_preguntas
     )
 
-    # Edición de preguntas fuera del formulario
-    for i in range(st.session_state.num_preguntas):
-        st.markdown(f"---\n### Pregunta {i+1}")
-        st.session_state.textos_preguntas[i] = st.text_input(
-            f"Texto de la pregunta {i+1}",
-            value=st.session_state.textos_preguntas[i],
-            key=f"texto_{i}"
-        )
-        st.session_state.tipos_preguntas[i] = st.selectbox(
-            f"Tipo de pregunta {i+1}",
-            ["Texto", "Opción múltiple", "Escala (1-5)"],
-            index=["Texto", "Opción múltiple", "Escala (1-5)"].index(st.session_state.tipos_preguntas[i]),
-            key=f"tipo_{i}"
-        )
-        if st.session_state.tipos_preguntas[i] == "Opción múltiple":
-            st.session_state.opciones_preguntas[i] = st.text_input(
-                f"Opciones separadas por coma para pregunta {i+1}",
-                value=st.session_state.opciones_preguntas[i],
-                key=f"opciones_{i}",
-                help="Ejemplo: Opción 1, Opción 2"
-            )
-
-    # Solo el botón está dentro del formulario
+    # TODO: Aquí empieza el formulario que incluye TODO: título, descripción, preguntas y botón
     with st.form("form_guardar_encuesta"):
         titulo = st.text_input("Título de la encuesta", key="titulo_encuesta", max_chars=100)
         descripcion = st.text_area("Descripción", key="descripcion_encuesta", max_chars=500)
+
+        for i in range(st.session_state.num_preguntas):
+            st.markdown(f"---\n### Pregunta {i+1}")
+            st.session_state.textos_preguntas[i] = st.text_input(
+                f"Texto de la pregunta {i+1}",
+                value=st.session_state.textos_preguntas[i],
+                key=f"texto_{i}"
+            )
+            st.session_state.tipos_preguntas[i] = st.selectbox(
+                f"Tipo de pregunta {i+1}",
+                ["Texto", "Opción múltiple", "Escala (1-5)"],
+                index=["Texto", "Opción múltiple", "Escala (1-5)"].index(st.session_state.tipos_preguntas[i]),
+                key=f"tipo_{i}"
+            )
+            if st.session_state.tipos_preguntas[i] == "Opción múltiple":
+                st.session_state.opciones_preguntas[i] = st.text_input(
+                    f"Opciones separadas por coma para pregunta {i+1}",
+                    value=st.session_state.opciones_preguntas[i],
+                    key=f"opciones_{i}",
+                    help="Ejemplo: Opción 1, Opción 2"
+                )
+
         submitted = st.form_submit_button("Guardar Encuesta")
 
     if submitted:
