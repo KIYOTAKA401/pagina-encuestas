@@ -104,20 +104,19 @@ def cerrar_sesion():
 # ----------------- FUNCIONES DE ENCUESTA -----------------
 def crear_encuesta():
     st.title("📋 Crear Encuesta")
+    
+    # Selección del número de preguntas (fuera del formulario)
+    num_preguntas = st.slider("Selecciona el número de preguntas", min_value=1, max_value=10, step=1)
 
-    # Usamos un formulario para agrupar todos los campos
+    # Usamos un formulario para agrupar todos los campos excepto el número de preguntas
     with st.form(key="form_crear_encuesta", clear_on_submit=False):
         titulo = st.text_input("Título de la encuesta", max_chars=100)
         descripcion = st.text_area("Descripción", max_chars=500)
-        
-        # Cambiado de number_input a slider para evitar envío con Enter
-        num_preguntas = st.slider("Número de preguntas", min_value=1, max_value=10, step=1)
 
         # Lista para almacenar las preguntas
         preguntas = []
 
-        # Contenedor para las preguntas
-        for i in range(int(num_preguntas)):
+        for i in range(num_preguntas):
             st.markdown(f"---\n### Pregunta {i+1}")
             texto = st.text_input(f"Texto de la pregunta {i+1}", key=f"pregunta_{i}", max_chars=200)
             tipo = st.selectbox(f"Tipo de pregunta {i+1}", ["Texto", "Opción múltiple", "Escala (1-5)"], key=f"tipo_{i}")
@@ -141,11 +140,11 @@ def crear_encuesta():
             if not titulo:
                 st.error("El título de la encuesta es obligatorio")
                 return
-                
+
             if any(not p["texto"] for p in preguntas):
                 st.error("Todas las preguntas deben tener texto")
                 return
-                
+
             try:
                 encuesta_id = str(uuid.uuid4())
                 response = supabase.table("encuestas").insert({
@@ -173,9 +172,10 @@ def crear_encuesta():
                         st.image(generar_qr(enlace_resultados), caption="Escanea para ver resultados")
                 else:
                     st.error("No se pudo crear la encuesta. Por favor intenta nuevamente.")
-                    
+
             except Exception as e:
                 st.error(f"Error al crear la encuesta: {str(e)}")
+
 
 
 def mostrar_resultados(encuesta_id):
