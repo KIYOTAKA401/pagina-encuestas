@@ -3,7 +3,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import bcrypt
-from supabase import create_clientst.legacy_caching.clear_cache()
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
