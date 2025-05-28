@@ -104,22 +104,47 @@ def cerrar_sesion():
 # ----------------- FUNCIONES DE ENCUESTA -----------------
 def crear_encuesta():
     st.title("📋 Crear Encuesta")
-    with st.form("form_crear_encuesta"):
+    
+    # Usamos un formulario para agrupar todos los campos
+    with st.form(key="form_crear_encuesta", clear_on_submit=False):
         titulo = st.text_input("Título de la encuesta", max_chars=100)
         descripcion = st.text_area("Descripción", max_chars=500)
         num_preguntas = st.number_input("Número de preguntas", min_value=1, max_value=10, step=1)
+        
+        # Lista para almacenar las preguntas
         preguntas = []
-
-        for i in range(int(num_preguntas)):
-            texto = st.text_input(f"Pregunta {i+1}", key=f"pregunta_{i}", max_chars=200)
-            tipo = st.selectbox(f"Tipo de pregunta {i+1}", ["Texto", "Opción múltiple", "Escala (1-5)"], key=f"tipo_{i}")
-            opciones = []
-            if tipo == "Opción múltiple":
-                opciones_str = st.text_input(f"Opciones separadas por coma para pregunta {i+1}", key=f"opciones_{i}", max_chars=200)
-                opciones = [op.strip() for op in opciones_str.split(",") if op.strip()]
-            preguntas.append({"texto": texto, "tipo": tipo, "opciones": opciones})
-
-        if st.form_submit_button("Guardar Encuesta"):
+        
+        # Contenedor para las preguntas (evita que se envíe el formulario)
+        with st.container():
+            for i in range(int(num_preguntas)):
+                st.markdown(f"---\n### Pregunta {i+1}")
+                texto = st.text_input(f"Texto de la pregunta {i+1}", key=f"pregunta_{i}", max_chars=200)
+                tipo = st.selectbox(f"Tipo de pregunta {i+1}", ["Texto", "Opción múltiple", "Escala (1-5)"], key=f"tipo_{i}")
+                
+                opciones = []
+                if tipo == "Opción múltiple":
+                    opciones_str = st.text_input(
+                        f"Opciones separadas por coma para pregunta {i+1}", 
+                        key=f"opciones_{i}", 
+                        max_chars=200,
+                        help="Ejemplo: Opción 1, Opción 2, Opción 3"
+                    )
+                    opciones = [op.strip() for op in opciones_str.split(",") if op.strip()]
+                
+                preguntas.append({"texto": texto, "tipo": tipo, "opciones": opciones})
+        
+        # Botón de submit con un ID único
+        submitted = st.form_submit_button("Guardar Encuesta", type="primary")
+        
+        if submitted:
+            if not titulo:
+                st.error("El título de la encuesta es obligatorio")
+                return
+                
+            if any(not p["texto"] for p in preguntas):
+                st.error("Todas las preguntas deben tener texto")
+                return
+                
             try:
                 encuesta_id = str(uuid.uuid4())
                 response = supabase.table("encuestas").insert({
@@ -130,24 +155,26 @@ def crear_encuesta():
                     "creador": st.session_state.usuario_autenticado
                 }).execute()
                 
-                # Verificar si la inserción fue exitosa
                 if len(response.data) > 0:
                     enlace = f"https://pagina-encuestas-zvfefqjjv3cagabjpvwexj.streamlit.app/?id={encuesta_id}"
                     st.success("Encuesta creada con éxito")
-                    st.markdown(f"[Haz clic aquí para acceder a la encuesta]({enlace})")
-                    st.image(generar_qr(enlace), caption="Escanea para responder")
                     
-                    enlace_resultados = f"{enlace}&resultados=1"
-                    st.markdown("### Enlace para ver resultados:")
-                    st.markdown(f"[Ver resultados de la encuesta]({enlace_resultados})")
-                    st.image(generar_qr(enlace_resultados), caption="Escanea para ver resultados")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown("**Enlace para responder:**")
+                        st.markdown(f"[{enlace}]({enlace})")
+                        st.image(generar_qr(enlace), caption="Escanea para responder")
+                    
+                    with col2:
+                        enlace_resultados = f"{enlace}&resultados=1"
+                        st.markdown("**Enlace para resultados:**")
+                        st.markdown(f"[{enlace_resultados}]({enlace_resultados})")
+                        st.image(generar_qr(enlace_resultados), caption="Escanea para ver resultados")
                 else:
                     st.error("No se pudo crear la encuesta. Por favor intenta nuevamente.")
                     
             except Exception as e:
                 st.error(f"Error al crear la encuesta: {str(e)}")
-                st.error("Detalles técnicos (para desarrollo):")
-                st.code(str(e))
 
 def mostrar_resultados(encuesta_id):
     try:
