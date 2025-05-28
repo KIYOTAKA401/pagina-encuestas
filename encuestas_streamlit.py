@@ -102,38 +102,55 @@ def cerrar_sesion():
     st.success("Sesión cerrada correctamente.")
 
 # ----------------- FUNCIONES DE ENCUESTA -----------------
+def actualizar_num_preguntas():
+    st.session_state.num_preguntas_guardado = st.session_state.num_preguntas
+
 def crear_encuesta():
     st.title("📋 Crear Encuesta")
-    
-    # Selección del número de preguntas (fuera del formulario)
-    num_preguntas = st.slider("Selecciona el número de preguntas", min_value=1, max_value=10, step=1)
 
-    # Usamos un formulario para agrupar todos los campos excepto el número de preguntas
+    # Inicializar el número de preguntas si no existe en session_state
+    if "num_preguntas_guardado" not in st.session_state:
+        st.session_state.num_preguntas_guardado = 1
+    if "num_preguntas" not in st.session_state:
+        st.session_state.num_preguntas = 1
+
+    # Slider para definir el número de preguntas (fuera del formulario)
+    st.slider(
+        "Selecciona el número de preguntas", 
+        min_value=1, 
+        max_value=10, 
+        key="num_preguntas", 
+        on_change=actualizar_num_preguntas
+    )
+
+    # Formulario principal
     with st.form(key="form_crear_encuesta", clear_on_submit=False):
         titulo = st.text_input("Título de la encuesta", max_chars=100)
         descripcion = st.text_area("Descripción", max_chars=500)
 
-        # Lista para almacenar las preguntas
         preguntas = []
 
-        for i in range(num_preguntas):
+        for i in range(st.session_state.num_preguntas_guardado):
             st.markdown(f"---\n### Pregunta {i+1}")
             texto = st.text_input(f"Texto de la pregunta {i+1}", key=f"pregunta_{i}", max_chars=200)
-            tipo = st.selectbox(f"Tipo de pregunta {i+1}", ["Texto", "Opción múltiple", "Escala (1-5)"], key=f"tipo_{i}")
-            
+            tipo = st.selectbox(
+                f"Tipo de pregunta {i+1}",
+                ["Texto", "Opción múltiple", "Escala (1-5)"],
+                key=f"tipo_{i}"
+            )
+
             opciones = []
             if tipo == "Opción múltiple":
                 opciones_str = st.text_input(
-                    f"Opciones separadas por coma para pregunta {i+1}", 
-                    key=f"opciones_{i}", 
+                    f"Opciones separadas por coma para pregunta {i+1}",
+                    key=f"opciones_{i}",
                     max_chars=200,
                     help="Ejemplo: Opción 1, Opción 2, Opción 3"
                 )
                 opciones = [op.strip() for op in opciones_str.split(",") if op.strip()]
-            
+
             preguntas.append({"texto": texto, "tipo": tipo, "opciones": opciones})
 
-        # Botón para enviar el formulario
         submitted = st.form_submit_button("Guardar Encuesta", type="primary")
 
         if submitted:
@@ -175,7 +192,6 @@ def crear_encuesta():
 
             except Exception as e:
                 st.error(f"Error al crear la encuesta: {str(e)}")
-
 
 
 def mostrar_resultados(encuesta_id):
