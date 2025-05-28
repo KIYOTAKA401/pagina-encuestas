@@ -126,21 +126,20 @@ def crear_encuesta():
         value=st.session_state.num_preguntas
     )
 
-tipos_disponibles = ["Texto", "Opción múltiple", "Escala (1-5)"]
-
-for i in range(st.session_state.num_preguntas):
-    st.markdown(f"---\n### Pregunta {i+1}")
-    col1, col2 = st.columns([5, 1])
-    
-    with col1:
+    # Edición de preguntas fuera del formulario
+    for i in range(st.session_state.num_preguntas):
+        st.markdown(f"---\n### Pregunta {i+1}")
         st.session_state.textos_preguntas[i] = st.text_input(
             f"Texto de la pregunta {i+1}",
             value=st.session_state.textos_preguntas[i],
             key=f"texto_{i}"
         )
-        st.write(f"Tipo de pregunta: {st.session_state.tipos_preguntas[i]}")
-        
-        # Mostrar opciones si es opción múltiple
+        st.session_state.tipos_preguntas[i] = st.selectbox(
+            f"Tipo de pregunta {i+1}",
+            ["Texto", "Opción múltiple", "Escala (1-5)"],
+            index=["Texto", "Opción múltiple", "Escala (1-5)"].index(st.session_state.tipos_preguntas[i]),
+            key=f"tipo_{i}"
+        )
         if st.session_state.tipos_preguntas[i] == "Opción múltiple":
             st.session_state.opciones_preguntas[i] = st.text_input(
                 f"Opciones separadas por coma para pregunta {i+1}",
@@ -149,12 +148,31 @@ for i in range(st.session_state.num_preguntas):
                 help="Ejemplo: Opción 1, Opción 2"
             )
 
-    with col2:
-        if st.button(f"Cambiar tipo {i}", key=f"cambiar_tipo_{i}"):
-            tipo_actual = st.session_state.tipos_preguntas[i]
-            nuevo_tipo = tipos_disponibles[(tipos_disponibles.index(tipo_actual) + 1) % len(tipos_disponibles)]
-            st.session_state.tipos_preguntas[i] = nuevo_tipo
-            st.experimental_rerun()  # Para refrescar la interfaz y que el cambio se note
+    # Solo el botón está dentro del formulario
+    with st.form("form_guardar_encuesta"):
+        titulo = st.text_input("Título de la encuesta", key="titulo_encuesta", max_chars=100)
+        descripcion = st.text_area("Descripción", key="descripcion_encuesta", max_chars=500)
+        submitted = st.form_submit_button("Guardar Encuesta")
+
+    if submitted:
+        if not titulo:
+            st.error("El título de la encuesta es obligatorio")
+            return
+
+        preguntas = []
+        for i in range(st.session_state.num_preguntas):
+            texto = st.session_state.textos_preguntas[i]
+            tipo = st.session_state.tipos_preguntas[i]
+            opciones = []
+
+            if tipo == "Opción múltiple":
+                opciones = [o.strip() for o in st.session_state.opciones_preguntas[i].split(",") if o.strip()]
+
+            if not texto:
+                st.error(f"La pregunta {i+1} no tiene texto.")
+                return
+
+            preguntas.append({"texto": texto, "tipo": tipo, "opciones": opciones})
 
         try:
             encuesta_id = str(uuid.uuid4())
