@@ -108,90 +108,104 @@ def actualizar_num_preguntas():
 def crear_encuesta():
     st.title("📋 Crear Encuesta")
 
-    # Inicializar el número de preguntas si no existe en session_state
-    if "num_preguntas_guardado" not in st.session_state:
-        st.session_state.num_preguntas_guardado = 1
+    # Inicialización del estado
     if "num_preguntas" not in st.session_state:
         st.session_state.num_preguntas = 1
+    if "tipos_preguntas" not in st.session_state:
+        st.session_state.tipos_preguntas = ["Texto"] * 10  # Máximo 10 preguntas
+    if "textos_preguntas" not in st.session_state:
+        st.session_state.textos_preguntas = [""] * 10
+    if "opciones_preguntas" not in st.session_state:
+        st.session_state.opciones_preguntas = [""] * 10
 
-    # Slider para definir el número de preguntas (fuera del formulario)
+    # Selector dinámico fuera del formulario para evitar envío accidental
     st.slider(
-        "Selecciona el número de preguntas", 
-        min_value=1, 
-        max_value=10, 
-        key="num_preguntas", 
-        on_change=actualizar_num_preguntas
+        "Selecciona el número de preguntas",
+        min_value=1,
+        max_value=10,
+        key="num_preguntas"
     )
 
-    # Formulario principal
-    with st.form(key="form_crear_encuesta", clear_on_submit=False):
+    # Edición dinámica de preguntas (fuera del formulario para evitar enter)
+    for i in range(st.session_state.num_preguntas):
+        st.markdown(f"---\n### Pregunta {i+1}")
+        st.session_state.textos_preguntas[i] = st.text_input(
+            f"Texto de la pregunta {i+1}",
+            value=st.session_state.textos_preguntas[i],
+            key=f"texto_{i}"
+        )
+
+        st.session_state.tipos_preguntas[i] = st.selectbox(
+            f"Tipo de pregunta {i+1}",
+            ["Texto", "Opción múltiple", "Escala (1-5)"],
+            index=["Texto", "Opción múltiple", "Escala (1-5)"].index(st.session_state.tipos_preguntas[i]),
+            key=f"tipo_{i}"
+        )
+
+        if st.session_state.tipos_preguntas[i] == "Opción múltiple":
+            st.session_state.opciones_preguntas[i] = st.text_input(
+                f"Opciones separadas por coma para pregunta {i+1}",
+                value=st.session_state.opciones_preguntas[i],
+                key=f"opciones_{i}",
+                help="Ejemplo: Opción 1, Opción 2, Opción 3"
+            )
+
+    # Botón de envío dentro del formulario (lo único que puede enviar)
+    with st.form("form_guardar_encuesta", clear_on_submit=False):
         titulo = st.text_input("Título de la encuesta", max_chars=100)
         descripcion = st.text_area("Descripción", max_chars=500)
 
+        submitted = st.form_submit_button("Guardar Encuesta", type="primary")
+
+    if submitted:
+        if not titulo:
+            st.error("El título de la encuesta es obligatorio")
+            return
+
         preguntas = []
-
-        for i in range(st.session_state.num_preguntas_guardado):
-            st.markdown(f"---\n### Pregunta {i+1}")
-            texto = st.text_input(f"Texto de la pregunta {i+1}", key=f"pregunta_{i}", max_chars=200)
-            tipo = st.selectbox(
-                f"Tipo de pregunta {i+1}",
-                ["Texto", "Opción múltiple", "Escala (1-5)"],
-                key=f"tipo_{i}"
-            )
-
+        for i in range(st.session_state.num_preguntas):
+            texto = st.session_state.textos_preguntas[i]
+            tipo = st.session_state.tipos_preguntas[i]
             opciones = []
+
             if tipo == "Opción múltiple":
-                opciones_str = st.text_input(
-                    f"Opciones separadas por coma para pregunta {i+1}",
-                    key=f"opciones_{i}",
-                    max_chars=200,
-                    help="Ejemplo: Opción 1, Opción 2, Opción 3"
-                )
-                opciones = [op.strip() for op in opciones_str.split(",") if op.strip()]
+                opciones = [o.strip() for o in st.session_state.opciones_preguntas[i].split(",") if o.strip()]
+
+            if not texto:
+                st.error(f"La pregunta {i+1} no tiene texto.")
+                return
 
             preguntas.append({"texto": texto, "tipo": tipo, "opciones": opciones})
 
-        submitted = st.form_submit_button("Guardar Encuesta", type="primary")
+        try:
+            encuesta_id = str(uuid.uuid4())
+            response = supabase.table("encuestas").insert({
+                "id": encuesta_id,
+                "titulo": titulo,
+                "descripcion": descripcion,
+                "preguntas": json.dumps(preguntas, ensure_ascii=False),
+                "creador": st.session_state.usuario_autenticado
+            }).execute()
 
-        if submitted:
-            if not titulo:
-                st.error("El título de la encuesta es obligatorio")
-                return
+            if len(response.data) > 0:
+                enlace = f"https://pagina-encuestas-zvfefqjjv3cagabjpvwexj.streamlit.app/?id={encuesta_id}"
+                st.success("Encuesta creada con éxito")
 
-            if any(not p["texto"] for p in preguntas):
-                st.error("Todas las preguntas deben tener texto")
-                return
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("**Enlace para responder:**")
+                    st.markdown(f"[{enlace}]({enlace})")
+                    st.image(generar_qr(enlace), caption="Escanea para responder")
 
-            try:
-                encuesta_id = str(uuid.uuid4())
-                response = supabase.table("encuestas").insert({
-                    "id": encuesta_id,
-                    "titulo": titulo,
-                    "descripcion": descripcion,
-                    "preguntas": json.dumps(preguntas, ensure_ascii=False),
-                    "creador": st.session_state.usuario_autenticado
-                }).execute()
-
-                if len(response.data) > 0:
-                    enlace = f"https://pagina-encuestas-zvfefqjjv3cagabjpvwexj.streamlit.app/?id={encuesta_id}"
-                    st.success("Encuesta creada con éxito")
-
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.markdown("**Enlace para responder:**")
-                        st.markdown(f"[{enlace}]({enlace})")
-                        st.image(generar_qr(enlace), caption="Escanea para responder")
-
-                    with col2:
-                        enlace_resultados = f"{enlace}&resultados=1"
-                        st.markdown("**Enlace para resultados:**")
-                        st.markdown(f"[{enlace_resultados}]({enlace_resultados})")
-                        st.image(generar_qr(enlace_resultados), caption="Escanea para ver resultados")
-                else:
-                    st.error("No se pudo crear la encuesta. Por favor intenta nuevamente.")
-
-            except Exception as e:
-                st.error(f"Error al crear la encuesta: {str(e)}")
+                with col2:
+                    enlace_resultados = f"{enlace}&resultados=1"
+                    st.markdown("**Enlace para resultados:**")
+                    st.markdown(f"[{enlace_resultados}]({enlace_resultados})")
+                    st.image(generar_qr(enlace_resultados), caption="Escanea para ver resultados")
+            else:
+                st.error("No se pudo crear la encuesta. Por favor intenta nuevamente.")
+        except Exception as e:
+            st.error(f"Error al crear la encuesta: {str(e)}")
 
 
 def mostrar_resultados(encuesta_id):
