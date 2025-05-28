@@ -32,10 +32,15 @@ def generar_qr(link):
 
 def verificar_conexion():
     try:
-        supabase.table("usuarios").select("usuario").limit(1).execute()
+        # Verifica conexión y permisos
+        res = supabase.table("encuestas").select("id").limit(1).execute()
         return True
     except Exception as e:
         st.error(f"Error de conexión con Supabase: {str(e)}")
+        st.error("Verifica que:")
+        st.error("- La URL y KEY de Supabase son correctos")
+        st.error("- La tabla 'encuestas' existe en tu base de datos")
+        st.error("- Tienes permisos de escritura")
         return False
 
 def registrar_usuario():
@@ -97,44 +102,52 @@ def cerrar_sesion():
     st.success("Sesión cerrada correctamente.")
 
 # ----------------- FUNCIONES DE ENCUESTA -----------------
-
 def crear_encuesta():
     st.title("📋 Crear Encuesta")
     with st.form("form_crear_encuesta"):
-        titulo = st.text_input("Título de la encuesta")
-        descripcion = st.text_area("Descripción")
+        titulo = st.text_input("Título de la encuesta", max_chars=100)
+        descripcion = st.text_area("Descripción", max_chars=500)
         num_preguntas = st.number_input("Número de preguntas", min_value=1, max_value=10, step=1)
         preguntas = []
 
         for i in range(int(num_preguntas)):
-            texto = st.text_input(f"Pregunta {i+1}", key=f"pregunta_{i}")
+            texto = st.text_input(f"Pregunta {i+1}", key=f"pregunta_{i}", max_chars=200)
             tipo = st.selectbox(f"Tipo de pregunta {i+1}", ["Texto", "Opción múltiple", "Escala (1-5)"], key=f"tipo_{i}")
             opciones = []
             if tipo == "Opción múltiple":
-                opciones_str = st.text_input(f"Opciones separadas por coma para pregunta {i+1}", key=f"opciones_{i}")
+                opciones_str = st.text_input(f"Opciones separadas por coma para pregunta {i+1}", key=f"opciones_{i}", max_chars=200)
                 opciones = [op.strip() for op in opciones_str.split(",") if op.strip()]
             preguntas.append({"texto": texto, "tipo": tipo, "opciones": opciones})
 
         if st.form_submit_button("Guardar Encuesta"):
-            encuesta_id = str(uuid.uuid4())
-            supabase.table("encuestas").insert({
-                "id": encuesta_id,
-                "titulo": titulo,
-                "descripcion": descripcion,
-                "preguntas": json.dumps(preguntas),
-                "creador": st.session_state.usuario_autenticado
-            }).execute()
-
-            enlace = f"https://pagina-encuestas-zvfefqjjv3cagabjpvwexj.streamlit.app/?id={encuesta_id}"
-            st.success("Encuesta creada con éxito")
-            st.markdown(f"[Haz clic aquí para acceder a la encuesta]({enlace})")
-            st.image(generar_qr(enlace), caption="Escanea para responder")
-            
-            # Mostrar enlace de resultados
-            enlace_resultados = f"{enlace}&resultados=1"
-            st.markdown("### Enlace para ver resultados:")
-            st.markdown(f"[Ver resultados de la encuesta]({enlace_resultados})")
-            st.image(generar_qr(enlace_resultados), caption="Escanea para ver resultados")
+            try:
+                encuesta_id = str(uuid.uuid4())
+                response = supabase.table("encuestas").insert({
+                    "id": encuesta_id,
+                    "titulo": titulo,
+                    "descripcion": descripcion,
+                    "preguntas": json.dumps(preguntas, ensure_ascii=False),
+                    "creador": st.session_state.usuario_autenticado
+                }).execute()
+                
+                # Verificar si la inserción fue exitosa
+                if len(response.data) > 0:
+                    enlace = f"https://pagina-encuestas-zvfefqjjv3cagabjpvwexj.streamlit.app/?id={encuesta_id}"
+                    st.success("Encuesta creada con éxito")
+                    st.markdown(f"[Haz clic aquí para acceder a la encuesta]({enlace})")
+                    st.image(generar_qr(enlace), caption="Escanea para responder")
+                    
+                    enlace_resultados = f"{enlace}&resultados=1"
+                    st.markdown("### Enlace para ver resultados:")
+                    st.markdown(f"[Ver resultados de la encuesta]({enlace_resultados})")
+                    st.image(generar_qr(enlace_resultados), caption="Escanea para ver resultados")
+                else:
+                    st.error("No se pudo crear la encuesta. Por favor intenta nuevamente.")
+                    
+            except Exception as e:
+                st.error(f"Error al crear la encuesta: {str(e)}")
+                st.error("Detalles técnicos (para desarrollo):")
+                st.code(str(e))
 
 def mostrar_resultados(encuesta_id):
     try:
@@ -206,8 +219,8 @@ def mostrar_resultados(encuesta_id):
 
 def mostrar_encuesta_publica(encuesta_id):
     try:
-        query_params = st.experimental_get_query_params()
-        ver_resultados = query_params.get("resultados", [None])[0]
+        query_params = st.query_params
+        ver_resultados = query_params.get("resultados", None)   
         
         if ver_resultados:
             mostrar_resultados(encuesta_id)
@@ -285,8 +298,8 @@ def main():
     if not verificar_conexion():
         return
 
-    query_params = st.experimental_get_query_params()
-    encuesta_id = query_params.get("id", [None])[0]
+    query_params = st.query_params
+    encuesta_id = query_params.get("id", None)
 
     if encuesta_id:
         mostrar_encuesta_publica(encuesta_id)
