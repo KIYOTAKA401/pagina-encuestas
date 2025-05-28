@@ -1,4 +1,5 @@
-st.legacy_caching.clear_cache()
+import warnings
+warnings.filterwarnings("ignore", message=".*st.experimental_get_query_params.*")
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
